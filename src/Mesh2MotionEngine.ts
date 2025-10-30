@@ -40,7 +40,7 @@ export class Mesh2MotionEngine {
 
   public readonly transform_controls: TransformControls = new TransformControls(this.camera, this.renderer.domElement)
   public is_transform_controls_dragging: boolean = false
-  public readonly transform_controls_hover_distance: number = 0.03 // distance to hover over bones to select them
+  public readonly transform_controls_hover_distance: number = 0.02 // distance to hover over bones to select them
 
   public view_helper: CustomViewHelper | undefined // mini 3d view to help orient orthographic views
 

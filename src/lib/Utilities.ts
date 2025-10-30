@@ -220,23 +220,26 @@ export class Utility {
       .replace(/(Right|Right_|R_|_Right|_R|Left|Left_|_Left|L_|_R|_L)/g, '')
   }
 
+  // Find the closest bone for raycaster using screen-space distance to account for camera zoom
   static raycast_closest_bone_test (camera: PerspectiveCamera, mouse_event: MouseEvent, skeleton: Skeleton): [Bone | null, number, number] {
-    // Find the closest bone for raycaster. Select that
     const raycaster: Raycaster = new Raycaster()
     raycaster.setFromCamera(Utility.normalized_mouse_position(mouse_event), camera)
+    const mouse_position = Utility.normalized_mouse_position(mouse_event)
+
     let closest_bone = null
     let closest_bone_index = 0
     let closest_distance = Infinity
 
     skeleton.bones.forEach((bone: Bone, bone_index: number) => {
       const world_position = Utility.world_position_from_object(bone)
-      const target = new Vector3()
-      const point = raycaster.ray.closestPointToPoint(world_position, target)
-      const distance = point.distanceTo(world_position)
 
-      if (distance < closest_distance) {
+      // Project bone position to screen space then find distance
+      const bone_screen_position: Vector3 = world_position.clone().project(camera)
+      const screen_distance: number = mouse_position.distanceTo(new Vector2(bone_screen_position.x, bone_screen_position.y))
+
+      if (screen_distance < closest_distance) {
         closest_bone = bone
-        closest_distance = distance
+        closest_distance = screen_distance
         closest_bone_index = bone_index
       }
     })

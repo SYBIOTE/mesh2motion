@@ -97,7 +97,7 @@ export class StepEditSkeleton extends EventTarget {
     return result
   }
 
-  private update_ui_options_on_begin(skeleton_type: SkeletonType): void {
+  private update_ui_options_on_begin (skeleton_type: SkeletonType): void {
     // keep track of skeleton type to show/hide certain UI elements
     // only human skeletons have the head weight correction option
     if (this.ui.dom_use_head_weight_correction_container != null) {
