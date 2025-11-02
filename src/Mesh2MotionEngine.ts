@@ -22,7 +22,6 @@ import { ProcessStep } from './lib/enums/ProcessStep.ts'
 import { type Bone, Group, Scene, type Skeleton, type Vector3 } from 'three'
 import type BoneTesterData from './lib/interfaces/BoneTesterData.ts'
 
-import { build_version } from './environment.js'
 import { SkeletonType } from './lib/enums/SkeletonType.ts'
 
 import { CustomSkeletonHelper } from './lib/CustomSkeletonHelper.ts'
@@ -100,9 +99,11 @@ export class Mesh2MotionEngine {
     tippy('[data-tippy-content]', { theme: 'mesh2motion' })
   }
 
+  // for the release, let's just show the first 7 characters of the commit SHA
+  // then the branch we used to build. This comes from Cloudflare build process
   private inject_build_version (): void {
     if (this.ui.dom_build_version !== null) {
-      this.ui.dom_build_version.innerHTML = build_version
+      this.ui.dom_build_version.innerHTML = `${window.CLOUDFLARE_COMMIT_SHA.slice(0, 6)}-(${window.CLOUDFLARE_BRANCH})`
     } else {
       console.warn('Build version DOM element is null. Cannot set number')
     }
