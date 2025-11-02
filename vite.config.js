@@ -1,18 +1,20 @@
-const isCodeSandbox = 'SANDBOX_URL' in process.env || 'CODESANDBOX_HOST' in process.env
-
 import { resolve } from 'path'
+import glsl from 'vite-plugin-glsl' // allows us to use external shaders files to be imported into our materials
 
-// allows us to use external shaders files to be imported into our materials
-import glsl from 'vite-plugin-glsl'
+const is_code_sandbox = 'SANDBOX_URL' in process.env || 'CODESANDBOX_HOST' in process.env
 
 export default {
   root: 'src/',
   publicDir: '../static/',
   base: './',
+  define: {
+    // expose all Cloudflare environment variables to client
+    PROCESS_ENV: JSON.stringify(process.env || 'unknown')
+  },
   server:
     {
       host: true,
-      open: !isCodeSandbox // Open if it's not a CodeSandbox
+      open: !is_code_sandbox // Open window if it's not a CodeSandbox
     },
   build:
     {
