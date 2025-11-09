@@ -5,16 +5,17 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 
 import {
   type AnimationClip, AnimationMixer, Quaternion, Vector3, type SkinnedMesh, type QuaternionKeyframeTrack,
-  type KeyframeTrack, type AnimationAction, type Object3D, Bone,
-  Skeleton
+  type KeyframeTrack, type AnimationAction, type Object3D, Bone, Skeleton
 } from 'three'
+
+import { AnimationUtility } from './AnimationUtility.ts'
 
 import { SkeletonType } from '../../enums/SkeletonType.ts'
 import { Utility } from '../../Utilities.ts'
 import { type ThemeManager } from '../../ThemeManager.ts'
 import { AnimationSearch } from './AnimationSearch.ts'
 import { type TransformedAnimationClipPair } from './interfaces/TransformedAnimationClipPair.ts'
-import { AnimationWithState } from './interfaces/AnimationWithState.ts'
+import { type AnimationWithState } from './interfaces/AnimationWithState.ts'
 
 // Note: EventTarget is a built-ininterface and do not need to import it
 export class StepAnimationsListing extends EventTarget {
@@ -159,20 +160,20 @@ export class StepAnimationsListing extends EventTarget {
         // load the animation clips into a new array
         // then, remove the animation position keyframes. That will mess up the skinning
         // process since we will be offsetting and moving the bone root positions
-        const cloned_anims: AnimationClip[] = Utility.deep_clone_animation_clips(gltf.animations)
+        const cloned_anims: AnimationClip[] = AnimationUtility.deep_clone_animation_clips(gltf.animations)
 
         // only keep position tracks
         // this mutates the cloned_anims, so no need for returning anything
-        Utility.clean_track_data(cloned_anims, true)
+        AnimationUtility.clean_track_data(cloned_anims, true)
 
         // apply scaling to position keyframes if we scaled skeleton up or down
-        this.apply_skeleton_scale_to_position_keyframes(cloned_anims)
+        AnimationUtility.apply_skeleton_scale_to_position_keyframes(cloned_anims, this.skeleton_scale)
 
         // we did all the processing needed, so add them
         // to the full list of animation clips
         this.animation_clips_loaded.push(...cloned_anims.map(clip => ({
           original_animation_clip: clip,
-          display_animation_clip: Utility.deep_clone_animation_clip(clip),
+          display_animation_clip: AnimationUtility.deep_clone_animation_clip(clip)
         })))
 
         remaining_loads--
@@ -218,31 +219,14 @@ export class StepAnimationsListing extends EventTarget {
     this.ui.dom_animations_listing_count.innerHTML = animation_length_string + ' animations'
   }
 
-  // when we scaled the skeleton itself near the beginning, we kept track of that
-  // this scaling will affect position keyframes since they expect the original skeleton scale
-  // this will fix any issues with position keyframes not matching the current skeleton scale
-  private apply_skeleton_scale_to_position_keyframes (animation_clips: AnimationClip[]): void {
-    animation_clips.forEach((animation_clip: AnimationClip) => {
-      animation_clip.tracks.forEach((track: KeyframeTrack) => {
-        if (track.name.includes('.position')) {
-          const values = track.values
-          for (let i = 0; i < values.length; i += 3) {
-            values[i] *= this.skeleton_scale
-            values[i + 1] *= this.skeleton_scale
-            values[i + 2] *= this.skeleton_scale
-          }
-        }
-      })
-    })
-  }
-
+ 
   /**
    * Rebuilds all of the warped animations by applying the specified warps.
    */
   private rebuild_warped_animations (): void {
     // Reset all of the warped clips to the corresponding original clip.
     this.animation_clips_loaded.forEach((warped_clip: TransformedAnimationClipPair) => {
-      warped_clip.display_animation_clip = Utility.deep_clone_animation_clip(warped_clip.original_animation_clip)
+      warped_clip.display_animation_clip = AnimationUtility.deep_clone_animation_clip(warped_clip.original_animation_clip)
     })
     /// Apply the arm extension warp:
     this.apply_arm_extension_warp(this.warp_arm_amount)

@@ -1,5 +1,5 @@
 import {
-  Vector3, Vector2, type Object3D, Mesh, Group, Bone, type Skeleton, Euler, Raycaster, AnimationClip, type KeyframeTrack,
+  Vector3, Vector2, type Object3D, Mesh, Group, Bone, type Skeleton, Euler, Raycaster,
   type PerspectiveCamera, type Scene, type Object3DEventMap, type BufferAttribute, type BufferGeometry, type InterleavedBufferAttribute
 } from 'three'
 import BoneTransformState from './interfaces/BoneTransformState'
@@ -291,36 +291,6 @@ export class Utility {
     })
 
     return closest_bone_index
-  }
-
-  static deep_clone_animation_clip (clip: AnimationClip): AnimationClip {
-    const tracks = clip.tracks.map((track: KeyframeTrack) => track.clone())
-    return new AnimationClip(clip.name, clip.duration, tracks)
-  }
-
-  static deep_clone_animation_clips (animation_clips: AnimationClip[]): AnimationClip[] {
-    return animation_clips.map((clip: AnimationClip) => {
-      return Utility.deep_clone_animation_clip(clip)
-    })
-  }
-
-  /// Removes position tracks from animation clips, keeping only rotation tracks.
-  /// @param animation_clips - The animation clips to modify.
-  /// @param preserve_root_position - Whether to keep the root position track.
-  static clean_track_data (animation_clips: AnimationClip[], preserve_root_position: boolean = false): void {
-    animation_clips.forEach((animation_clip: AnimationClip) => {
-      // remove all position nodes except root
-      let rotation_tracks: KeyframeTrack[] = []
-
-      if (preserve_root_position) {
-        rotation_tracks = animation_clip.tracks.filter((x: KeyframeTrack) => x.name.includes('quaternion') || x.name.toLowerCase().includes('hips.position'))
-      } else {
-        rotation_tracks = animation_clip.tracks.filter((x: KeyframeTrack) => x.name.includes('quaternion') || x.name.includes('hips.position'))
-      }
-
-      animation_clip.tracks = rotation_tracks // update track data
-      // console.log(animation_clip.tracks) // UNUSED DEBUG CODE
-    })
   }
 
   static parse_input_number (value: string | undefined): number {
