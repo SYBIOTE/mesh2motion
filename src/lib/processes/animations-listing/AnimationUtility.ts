@@ -1,5 +1,5 @@
-import { AnimationClip, Quaternion, QuaternionKeyframeTrack, Vector3, type KeyframeTrack } from "three"
-import { TransformedAnimationClipPair } from "./interfaces/TransformedAnimationClipPair"
+import { AnimationClip, Quaternion, Vector3, type KeyframeTrack, type QuaternionKeyframeTrack } from 'three'
+import type { TransformedAnimationClipPair } from './interfaces/TransformedAnimationClipPair'
 
 export class AnimationUtility {
   // when we scaled the skeleton itself near the beginning, we kept track of that
@@ -48,7 +48,6 @@ export class AnimationUtility {
       }
 
       animation_clip.tracks = rotation_tracks // update track data
-      // console.log(animation_clip.tracks) // UNUSED DEBUG CODE
     })
   }
 
@@ -137,8 +136,8 @@ export class AnimationUtility {
         }
       }
  
-      // Perform the swaps
-      track_swaps.forEach(({ leftIndex, rightIndex, clipDetails }, idx) => {
+      // Perform the swaps with quaternion mirroring
+      track_swaps.forEach(({ leftIndex, rightIndex, clipDetails }) => {
         const left_track = tracks[leftIndex]
         const right_track = tracks[rightIndex]
 
@@ -148,11 +147,99 @@ export class AnimationUtility {
         const left_times = left_track.times.slice()
         const right_times = right_track.times.slice()
 
-        // Swap the track values
-        left_track.values = right_values
+        // Mirror the quaternions before swapping
+        const mirrored_left_values = this.mirror_quaternion_track_values(left_values)
+        const mirrored_right_values = this.mirror_quaternion_track_values(right_values)
+
+        // Swap the mirrored track values and times
+        left_track.values = mirrored_right_values
         left_track.times = right_times
-        right_track.values = left_values
+        right_track.values = mirrored_left_values
         right_track.times = left_times
+      })
+    })
+
+    this.apply_center_bone_mirroring(animation_clips)
+  }
+
+  /**
+   * Mirrors quaternion values by inverting X and W components for proper reflection.
+   * This creates the mathematical mirror of the rotation.
+   */
+  private static mirror_quaternion_track_values (values: Float32Array): Float32Array {
+    const mirrored_values = values.slice() // clone the array
+    const units_in_quaternions = 4
+
+    // Process each quaternion keyframe
+    for (let i = 0; i < values.length; i += units_in_quaternions) {
+      const quat = new Quaternion(
+        values[i], // x
+        values[i + 1], // y
+        values[i + 2], // z
+        values[i + 3] // w
+      )
+
+      // For mirroring left/right bone rotations, we invert X and W components
+      // This creates the proper mirror reflection of the rotation
+      quat.x = -quat.x
+      quat.w = -quat.w
+
+      // Write back the mirrored quaternion
+      mirrored_values[i] = quat.x
+      mirrored_values[i + 1] = quat.y
+      mirrored_values[i + 2] = quat.z
+      mirrored_values[i + 3] = quat.w
+    }
+
+    return mirrored_values
+  }
+
+  /**
+   * Mirrors center bone rotations by inverting Y and Z quaternion components.
+   * This handles bones like spine, hips, neck, head that don't have L/R pairs.
+   */
+  private static apply_center_bone_mirroring (animation_clips: TransformedAnimationClipPair[]): void {
+    animation_clips.forEach((warped_clip: TransformedAnimationClipPair) => {
+      const tracks = warped_clip.display_animation_clip.tracks
+
+      tracks.forEach((track: KeyframeTrack) => {
+        if (!track.name.includes('quaternion')) {
+          return
+        }
+
+        const track_name_lower = track.name.toLowerCase()
+        const is_center_bone = track_name_lower.includes('spine') ||
+                              track_name_lower.includes('hips') ||
+                              track_name_lower.includes('neck') ||
+                              track_name_lower.includes('head') ||
+                              track_name_lower.includes('torso') ||
+                              track_name_lower.includes('chest')
+
+        if (is_center_bone) {
+          const values = track.values
+          const units_in_quaternions = 4
+
+          // Process each quaternion keyframe
+          for (let i = 0; i < values.length; i += units_in_quaternions) {
+            const quat = new Quaternion(
+              values[i], // x
+              values[i + 1], // y
+              values[i + 2], // z
+              values[i + 3] // w
+            )
+
+            // For mirroring, we need to invert the Y and Z components
+            // This creates the mirror effect for center bone rotations
+            quat.y = -quat.y
+            quat.z = -quat.z
+
+            // Write back the modified quaternion
+            values[i] = quat.x
+            values[i + 1] = quat.y
+            values[i + 2] = quat.z
+            values[i + 3] = quat.w
+          }
+        }
       })
     })
   }
