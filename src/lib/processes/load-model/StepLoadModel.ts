@@ -32,6 +32,9 @@ export class StepLoadModel extends EventTarget {
   // will mess up model and need to just replace the entire material
   private mesh_has_broken_material: boolean = false
 
+  // controls whether to preserve all objects (bones, lights, etc.) or strip to meshes only
+  private preserve_all_objects: boolean = false
+
   // for debugging, let's count these to help us test performance things better
   vertex_count = 0
   triangle_count = 0
@@ -197,6 +200,15 @@ export class StepLoadModel extends EventTarget {
     this.triangle_count = 0
     this.objects_count = 0
     this.mesh_has_broken_material = false
+    this.preserve_all_objects = false
+  }
+
+  /**
+   * 
+   * @param preserve 
+   */
+  public set_preserve_all_objects (preserve: boolean): void {
+    this.preserve_all_objects = preserve
   }
 
   public load_model_file (model_file_path: string | ArrayBuffer | null, file_extension: string): void {
@@ -315,6 +327,11 @@ export class StepLoadModel extends EventTarget {
   }
 
   private strip_out_all_unecessary_model_data (model_data: Scene): Scene {
+    // retargeting needs all the objects, so don't do any stripping
+    if (this.preserve_all_objects) {
+      return model_data
+    }
+
     // create a new scene object, and only include meshes
     const new_scene = new Scene()
     new_scene.name = this.model_display_name
