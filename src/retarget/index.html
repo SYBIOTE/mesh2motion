@@ -39,8 +39,23 @@
     </nav>
         
         <div style="padding: 2rem;">
-            <input type="file" id="upload-file" accept=".glb,.fbx,.zip" style="display: none;" />
-            <label for="upload-file" class="button">Choose 3D Model File</label>
+            <!-- there are some issues going on with scaling the skeleton for FBX and other formats
+                 so we will start simple for now with just GLB files -->
+            <input type="file" id="upload-file" accept=".glb" style="display: none;" />
+            <label for="upload-file" class="button" id="load-model-button">Choose 3D Model File</label>
+            
+            <div id="skeleton-selection-container" >
+                <label for="skeleton-type-select">Choose Target Skeleton:</label>
+                <select id="skeleton-type-select" class="button">
+                    <option value="">-- Select Skeleton --</option>
+                    <option value="human">Human</option>
+                    <option value="quadraped">Quadruped (Fox)</option>
+                    <option value="bird">Bird</option>
+                    <option value="dragon">Dragon</option>
+                </select>               
+            </div>
+
+             <button class="button" id="bone-map-button" >Bone Map</button>
         </div>
 
         <!-- 3d view controls shown on bottom right. This helps with click events -->

@@ -1,32 +1,52 @@
 import { Mesh2MotionEngine } from '../Mesh2MotionEngine.ts'
-import { Group, Object3DEventMap, Skeleton, SkinnedMesh, Vector3 } from 'three'
+import { type Group, type Object3DEventMap, type SkinnedMesh, Vector3 } from 'three'
 import { ModalDialog } from '../lib/ModalDialog.ts'
+import { StepLoadTargetSkeleton } from './StepLoadTargetSkeleton.ts'
+import { RetargetUtils } from './RetargetUtils.ts'
 
 class RetargetModule {
-  private mesh2motion_engine: Mesh2MotionEngine
+  private readonly mesh2motion_engine: Mesh2MotionEngine
   private fileInput: HTMLInputElement | null = null
+  private load_model_button: HTMLLabelElement | null = null
+  private bone_map_button: HTMLButtonElement | null = null
+  private readonly step_load_target_skeleton: StepLoadTargetSkeleton
 
   constructor () {
     // Set up camera position similar to marketing bootstrap
     this.mesh2motion_engine = new Mesh2MotionEngine()
     const camera_position = new Vector3().set(0, 1.7, 5)
     this.mesh2motion_engine.set_camera_position(camera_position)
+    
+    // Initialize skeleton loading step
+    this.step_load_target_skeleton = new StepLoadTargetSkeleton(this.mesh2motion_engine.get_scene())
+  }
+
+  public init (): void {
+    this.add_event_listeners()
+    this.step_load_target_skeleton.begin()
   }
 
   public add_event_listeners (): void {
     // Get DOM elements
     this.fileInput = document.getElementById('upload-file') as HTMLInputElement
+    this.load_model_button = document.getElementById('load-model-button') as HTMLLabelElement
+    this.bone_map_button = document.getElementById('bone-map-button') as HTMLButtonElement
 
     // Add event listener for file selection
     this.fileInput.addEventListener('change', (event) => {
       console.log('File input changed', event)
       this.handleFileSelect(event)
     })
+    
+    // Bone map button click listener
+    this.bone_map_button?.addEventListener('click', () => {
+      this.handle_bone_map_requested()
+    })
   }
 
   private handleFileSelect (event: Event): void {
     const target = event.target as HTMLInputElement
-    if (target.files && target.files.length > 0) {
+    if (target.files !== null && target.files.length > 0) {
       const file = target.files[0]
       console.log('File selected:', file.name, 'Size:', file.size, 'Type:', file.type)
 
@@ -40,8 +60,7 @@ class RetargetModule {
       } else if (file_name.endsWith('.zip')) {
         file_extension = 'zip'
       } else {
-        console.error('Unsupported file type')
-        this.showErrorDialog('Unsupported file type. Please select a GLB, FBX, or ZIP file.')
+        new ModalDialog('Unsupported file type. Please select a GLB, FBX, or ZIP file.', 'Error').show()
         return
       }
 
@@ -60,58 +79,25 @@ class RetargetModule {
 
           // read in mesh2motion engine's retargetable model data
           const retargetable_meshes = this.mesh2motion_engine.load_model_step.get_final_retargetable_model_data()
-          const is_valid_skinned_mesh = this.validate_skinned_mesh_has_bones(retargetable_meshes)
+          const is_valid_skinned_mesh = RetargetUtils.validate_skinned_mesh_has_bones(retargetable_meshes)
           if (is_valid_skinned_mesh) {
             console.log('adding retargetable meshes to scene for retargeting')
-            this.reset_skinned_mesh_to_rest_pose(retargetable_meshes)
+            RetargetUtils.reset_skinned_mesh_to_rest_pose(retargetable_meshes)
             this.mesh2motion_engine.get_scene().add(retargetable_meshes)
 
             // Add skeleton helper
             this.add_skeleton_helper(retargetable_meshes)
+            
+            // Transition to skeleton loading step
+            this.transition_to_skeleton_loading()
           }
         }, { once: true })
       } catch (error) {
         console.error('Error loading model:', error)
-        this.showErrorDialog('Error loading model file.')
+        new ModalDialog('Error loading model file.', 'Error').show()
         URL.revokeObjectURL(file_url) // Clean up the URL
       }
     }
-  }
-
-  private showErrorDialog (message: string): void {
-    new ModalDialog(message, 'Error').show()
-  }
-
-  private reset_skinned_mesh_to_rest_pose (skinned_meshes_group: Group<Object3DEventMap>): void {
-    skinned_meshes_group.traverse((child) => {
-      if (child.type === 'SkinnedMesh') {
-        const skinned_mesh = child as SkinnedMesh
-        const skeleton: Skeleton = skinned_mesh.skeleton
-        skeleton.pose()
-        skinned_mesh.updateMatrixWorld(true)
-      }
-    })
-  }
-
-  private validate_skinned_mesh_has_bones (retargetable_model: Group<Object3DEventMap>): boolean {
-    // Collect all SkinnedMeshes
-    const skinned_meshes: SkinnedMesh[] = []
-    retargetable_model.traverse((child) => {
-      if (child.type === 'SkinnedMesh') {
-        const skinned_mesh = child as SkinnedMesh
-        skinned_meshes.push(skinned_mesh)
-      }
-    })
-
-    // Check if we have any SkinnedMeshes
-    // TODO: Error can be a dialog box
-    if (skinned_meshes.length === 0) {
-      new ModalDialog('No SkinnedMeshes found in file', 'Error opening file').show()
-      return false
-    }
-
-    console.log('skinned meshes found. ready to start retargeting process:', skinned_meshes)
-    return true
   }
 
   private add_skeleton_helper (retargetable_meshes: Group<Object3DEventMap>): void {
@@ -122,11 +108,29 @@ class RetargetModule {
       }
     })
   }
+  
+  private transition_to_skeleton_loading (): void {
+    // Hide the model loading button
+    // if (this.load_model_button !== null) {
+    //   this.load_model_button.style.display = 'none'
+    // }
+
+    // TODO: don't need this since we are doing both model and skeleton loading in same step
+
+  }
+  
+  private handle_bone_map_requested (): void {
+    console.log('Bone map requested - proceeding to bone mapping step')
+    console.log('Target skeleton type:', this.step_load_target_skeleton.get_skeleton_type())
+    console.log('Target armature:', this.step_load_target_skeleton.get_loaded_target_armature())
+    // TODO: Implement bone mapping step
+  }
 }
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-  retarget_app.add_event_listeners()
+  retarget_app.init()
 })
 
 const retarget_app = new RetargetModule()
+
