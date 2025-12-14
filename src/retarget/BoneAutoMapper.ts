@@ -1,3 +1,5 @@
+import { Bone } from "three"
+
 /**
  * Bone categories for grouping bones by anatomical area
  */
@@ -49,11 +51,11 @@ export class BoneAutoMapper {
     const used_source_bones = new Set<string>()
 
     // Create metadata for both source and target bones
-    console.log('=== SOURCE BONES ===')
-    const source_bones_meta = this.categorize_bones(source_bone_names)
+    // console.log('=== SOURCE BONES ===')
+    const source_bones_meta: BoneMetadata[] = this.create_all_bone_metadata(source_bone_names)
     
-    console.log('\n=== TARGET BONES ===')
-    const target_bones_meta = this.categorize_bones(target_bone_names)
+    // console.log('\n=== TARGET BONES ===')
+    const target_bones_meta: BoneMetadata[] = this.create_all_bone_metadata(target_bone_names)
 
     console.log('\n=== FINAL BONE METADATA ===')
     console.log('Source bones metadata:', source_bones_meta)
@@ -90,38 +92,13 @@ export class BoneAutoMapper {
    * @param bone_names - Array of bone names to process
    * @returns Array of bone metadata objects
    */
-  private static categorize_bones (bone_names: string[]): BoneMetadata[] {
+  private static create_all_bone_metadata (bone_names: string[]): BoneMetadata[] {
     const bones_metadata: BoneMetadata[] = []
 
-    // console.log('\n--- Bone Categorization ---')
     for (const bone_name of bone_names) {
       const metadata = this.create_bone_metadata(bone_name)
       bones_metadata.push(metadata)
-      // console.log(`  "${bone_name}" → ${metadata.category} (${metadata.side})${metadata.normalized_name !== bone_name.toLowerCase() ? ` [normalized: ${metadata.normalized_name}]` : ''}`)
     }
-
-    // Log summary counts
-    console.log('\n--- Category Summary ---')
-    const categories: BoneCategory[] = [
-      BoneCategory.Torso,
-      BoneCategory.Arms,
-      BoneCategory.Hands,
-      BoneCategory.Legs,
-      BoneCategory.Wings,
-      BoneCategory.Tail,
-      BoneCategory.Unknown
-    ]
-    for (const category of categories) {
-      const bones_in_category = bones_metadata.filter(b => b.category === category)
-      const count = bones_in_category.length
-      if (count > 0) {
-        const left_count = bones_in_category.filter(b => b.side === BoneSide.Left).length
-        const right_count = bones_in_category.filter(b => b.side === BoneSide.Right).length
-        const center_count = bones_in_category.filter(b => b.side === BoneSide.Center).length
-        console.log(`  ${category}: ${count} bones (L:${left_count}, R:${right_count}, C:${center_count})`)
-      }
-    }
-    console.log('---\n')
 
     return bones_metadata
   }
@@ -180,16 +157,18 @@ export class BoneAutoMapper {
    * @returns BoneMetadata object
    */
   private static create_bone_metadata (bone_name: string): BoneMetadata {
-    const category: BoneCategory = this.categorize_bone(bone_name)
-    const side: BoneSide = this.determine_bone_side(bone_name, category)
-    const normalized_name: string = this.normalize_bone_name(bone_name)
-
-    return {
+    const bone_metadata: BoneMetadata = {
       name: bone_name,
-      normalized_name,
-      side,
-      category
+      normalized_name: 'Unknown',
+      side: BoneSide.Unknown,
+      category: BoneCategory.Unknown
     }
+
+    bone_metadata.category = this.categorize_bone(bone_name)
+    bone_metadata.side = this.determine_bone_side(bone_name, bone_metadata.category)
+    bone_metadata.normalized_name = this.normalize_bone_name(bone_name, bone_metadata.category, bone_metadata.side) // will help with matching
+
+    return bone_metadata
   }
 
   /**
@@ -276,8 +255,10 @@ export class BoneAutoMapper {
    * - Converting to lowercase
    * - Removing common prefixes/suffixes
    * - Standardizing separators
+   * - Removing side indicators (since we have that info separately)
+   * - Standardizing numeric suffixes
    */
-  private static normalize_bone_name (bone_name: string): string {
+  private static normalize_bone_name (bone_name: string, category: BoneCategory, side: BoneSide): string {
     let normalized = bone_name.toLowerCase()
 
     // Replace various separators with underscores
@@ -286,20 +267,56 @@ export class BoneAutoMapper {
     // Remove common prefixes
     normalized = normalized.replace(/^(mixamorig|mixamorig_|rig_|bone_|jnt_|joint_|def_)/i, '')
 
-    // Standardize left/right notation
-    normalized = normalized.replace(/\bleft\b/g, 'l')
-    normalized = normalized.replace(/\bright\b/g, 'r')
-    normalized = normalized.replace(/^l_/g, 'left_')
-    normalized = normalized.replace(/^r_/g, 'right_')
-    normalized = normalized.replace(/_l$/g, '_left')
-    normalized = normalized.replace(/_r$/g, '_right')
+    // Remove side indicators since we already know the side from the side parameter
+    // This helps match paired bones (e.g., "arm_left" and "arm_right" both become "arm")
+    if (side !== BoneSide.Center && side !== BoneSide.Unknown) {
+      normalized = normalized.replace(/\b(left|right|l|r)\b/g, '')
+      normalized = normalized.replace(/^(l|r)_/g, '')
+      normalized = normalized.replace(/_(l|r)$/g, '')
+      normalized = normalized.replace(/\.(l|r)$/g, '')
+      // Clean up any resulting double underscores or trailing underscores
+      normalized = normalized.replace(/__+/g, '_')
+      normalized = normalized.replace(/^_|_$/g, '')
+    }
+
+    // Standardize numeric suffixes (e.g., "01", "001", "_1" all become "1")
+    normalized = normalized.replace(/[._]0*(\d+)$/g, '$1')
+    
+    // Apply category-specific normalizations
+    if (category === BoneCategory.Hands) {
+      // Standardize finger naming variations
+      normalized = normalized.replace(/\b(thumb|index|middle|ring|pinky|pinkie)\b/g, (match) => {
+        const finger_map: Record<string, string> = {
+          'thumb': 'thumb',
+          'index': 'index',
+          'middle': 'middle',
+          'ring': 'ring',
+          'pinky': 'pinky',
+          'pinkie': 'pinky'
+        }
+        return finger_map[match] || match
+      })
+    } else if (category === BoneCategory.Legs) {
+      // Standardize leg bone naming variations
+      normalized = normalized.replace(/\b(upperleg|upleg|thigh)\b/g, 'thigh')
+      normalized = normalized.replace(/\b(lowerleg|lowleg|shin|calf)\b/g, 'calf')
+    } else if (category === BoneCategory.Arms) {
+      // Standardize arm bone naming variations
+      normalized = normalized.replace(/\b(upperarm|uparm)\b/g, 'upperarm')
+      normalized = normalized.replace(/\b(lowerarm|lowarm|forearm)\b/g, 'forearm')
+    }
+
+    // Final cleanup
+    normalized = normalized.replace(/__+/g, '_')
+    normalized = normalized.replace(/^_|_$/g, '')
 
     return normalized
   }
 
   /**
    * Calculate similarity score between two normalized bone names
-   * Uses a combination of exact match, contains, and Levenshtein distance
+   * Uses a combination of exact match, contains
+   * returns: similarity score between 0 and 1. 1 is a perfect match.
    */
   private static calculate_similarity (name1: string, name2: string): number {
     // Exact match
@@ -314,43 +331,6 @@ export class BoneAutoMapper {
       return 0.8 + (shorter / longer) * 0.2
     }
 
-    // Use Levenshtein distance for fuzzy matching
-    const distance = this.levenshtein_distance(name1, name2)
-    const max_length = Math.max(name1.length, name2.length)
-    const similarity = 1 - (distance / max_length)
-
-    return similarity
-  }
-
-  /**
-   * Calculate Levenshtein distance between two strings
-   * (minimum number of single-character edits required to change one string into another)
-   */
-  private static levenshtein_distance (str1: string, str2: string): number {
-    const len1 = str1.length
-    const len2 = str2.length
-    const matrix: number[][] = []
-
-    // Initialize matrix
-    for (let i = 0; i <= len1; i++) {
-      matrix[i] = [i]
-    }
-    for (let j = 0; j <= len2; j++) {
-      matrix[0][j] = j
-    }
-
-    // Fill matrix
-    for (let i = 1; i <= len1; i++) {
-      for (let j = 1; j <= len2; j++) {
-        const cost = str1[i - 1] === str2[j - 1] ? 0 : 1
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j] + 1, // deletion
-          matrix[i][j - 1] + 1, // insertion
-          matrix[i - 1][j - 1] + cost // substitution
-        )
-      }
-    }
-
-    return matrix[len1][len2]
+    return 0.0
   }
 }
