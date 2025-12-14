@@ -1,9 +1,10 @@
 import { resolve } from 'path'
+import { defineConfig } from 'vite'
 import glsl from 'vite-plugin-glsl' // allows us to use external shaders files to be imported into our materials
 
 const is_code_sandbox = 'SANDBOX_URL' in process.env || 'CODESANDBOX_HOST' in process.env
 
-export default {
+export default defineConfig({
   root: 'src/',
   publicDir: '../static/',
   base: './',
@@ -33,4 +34,4 @@ export default {
     [
       glsl()
     ]
-}
+})
