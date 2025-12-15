@@ -1,5 +1,5 @@
 import { Mesh2MotionEngine } from '../Mesh2MotionEngine.ts'
-import { type Group, type Object3DEventMap, type SkinnedMesh, Vector3 } from 'three'
+import { Box3, type Group, type Object3DEventMap, type SkinnedMesh, Vector3 } from 'three'
 import { ModalDialog } from '../lib/ModalDialog.ts'
 import { StepLoadSourceSkeleton } from './StepLoadSourceSkeleton.ts'
 import { StepBoneMapping } from './StepBoneMapping.ts'
@@ -20,6 +20,12 @@ class RetargetModule {
     const camera_position = new Vector3().set(0, 1.7, 5)
     this.mesh2motion_engine.set_camera_position(camera_position)
     
+    // Override zoom limits for retargeting to accommodate models of various sizes
+    // Allow closer zoom for small details and farther zoom for large models
+    // FBX are known to have units with 1 = 1 cm, so things like mixamo will import at 200 units
+    // GLB seems to have gone with 1 = 1 meter
+    this.mesh2motion_engine.set_zoom_limits(0.1, 1000)
+   
     // Initialize Mesh2Motion skeleton loading step (source)
     this.step_load_source_skeleton = new StepLoadSourceSkeleton(this.mesh2motion_engine.get_scene())
     
@@ -114,6 +120,9 @@ class RetargetModule {
             RetargetUtils.reset_skinned_mesh_to_rest_pose(retargetable_meshes)
             this.mesh2motion_engine.get_scene().add(retargetable_meshes)
 
+            // Adjust camera based on model size
+            this.adjust_camera_for_model(retargetable_meshes)
+
             // Add skeleton helper
             this.add_skeleton_helper(retargetable_meshes)
             
@@ -138,6 +147,52 @@ class RetargetModule {
       }
     })
   }
+
+  private adjust_camera_for_model (model_group: Group<Object3DEventMap>): void {
+    // Calculate bounding box of the model
+    const bounding_box = new Box3().setFromObject(model_group)
+    
+    // Calculate model dimensions
+    const size = new Vector3()
+    bounding_box.getSize(size)
+    
+    // Calculate center of the model
+    const center = new Vector3()
+    bounding_box.getCenter(center)
+    
+    // Get the maximum dimension (height, width, or depth)
+    const max_dimension = Math.max(size.x, size.y, size.z)
+
+    // Disable fog for retargeting to prevent models from appearing foggy when zoomed far out    
+    if (max_dimension > 50) {
+      console.log('Model is very large. Removing fog to increase visibility: ', max_dimension)
+      this.mesh2motion_engine.set_fog_enabled(false)
+    }
+    
+    // Calculate appropriate camera distance
+    // Use a multiplier to ensure the entire model is visible
+    // The 2.5 multiplier provides good framing with some padding
+    const camera_distance = max_dimension * 2.5
+    
+    // Position camera to look at the center of the model
+    // Keep camera slightly elevated (looking down at the model)
+    const camera_position = new Vector3(
+      center.x,
+      center.y + max_dimension * 0.3, // Slight elevation based on model size
+      center.z + camera_distance
+    )
+    
+    this.mesh2motion_engine.set_camera_position(camera_position)
+    
+    console.log('Adjusted camera for model:', {
+      bounding_box_size: size,
+      center: center,
+      max_dimension: max_dimension,
+      camera_distance: camera_distance,
+      camera_position: camera_position
+    })
+  }
+
   private setup_animation_loop (): void {
     let last_time = performance.now()
     

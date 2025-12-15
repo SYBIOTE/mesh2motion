@@ -123,6 +123,27 @@ export class Mesh2MotionEngine {
     this.controls?.update()
   }
 
+  public set_zoom_limits (min_distance: number, max_distance: number): void {
+    if (this.controls !== undefined) {
+      this.controls.minDistance = min_distance
+      this.controls.maxDistance = max_distance
+      this.controls.update()
+    }
+  }
+
+  public set_fog_enabled (enabled: boolean): void {
+    if (enabled) {
+      // Determine fog color based on theme
+      let floor_color = 0x2d4353
+      if (this.theme_manager.get_current_theme() === 'light') {
+        floor_color = 0xecf0f1
+      }
+      this.scene.fog = new THREE.Fog(floor_color, 20, 80)
+    } else {
+      this.scene.fog = null
+    }
+  }
+
   private setup_environment (): void {
     this.renderer.setSize(window.innerWidth, window.innerHeight)
     this.renderer.shadowMap.enabled = true

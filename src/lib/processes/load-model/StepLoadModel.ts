@@ -332,6 +332,15 @@ export class StepLoadModel extends EventTarget {
       return
     }
 
+    // if we are doing retargeting, our work ends here for loading the model
+    // assign the final retargetable model data to the cleaned scene with skinned meshes
+    // any scaling or further processing can be donw as part of the retargeting process
+    if (this.preserve_skinned_mesh) {
+      this.final_retargetable_model_data = clean_scene_with_only_models as Group<Object3DEventMap>
+      this.dispatchEvent(new CustomEvent('modelLoadedForRetargeting'))
+      return
+    }
+
     // loop through each child in scene and reset rotation
     // if we don't the skinning process doesn't take rotation into account
     // and creates odd results
@@ -345,14 +354,6 @@ export class StepLoadModel extends EventTarget {
     // Some objects come in very large, which makes it harder to work with
     // scale everything down to a max height. mutate the clean scene object
     this.scale_model_on_import_if_extreme(clean_scene_with_only_models)
-
-    // if we are doing retargeting, our work ends here for loading the model
-    // assign the final retargetable model data to the cleaned scene with skinned meshes
-    if (this.preserve_skinned_mesh) {
-      this.final_retargetable_model_data = clean_scene_with_only_models as Group<Object3DEventMap>
-      this.dispatchEvent(new CustomEvent('modelLoadedForRetargeting'))
-      return
-    }
 
     // preserved skinned meshes shouldn't be breaking apart mesh data
     // breaking apart skinned meshes converts it to a regular mesh which we don't want.
