@@ -266,10 +266,51 @@ export class RetargetAnimationPreview extends EventTarget {
     )
 
     // Apply Mixamo-specific corrections
-    this.apply_mixamo_corrections(retargeted_clip)
+    const target_mapping_type = this.step_bone_mapping.get_target_mapping_template()
+    if (target_mapping_type === TargetBoneMappingType.Mixamo) {
+      this.apply_mixamo_corrections(retargeted_clip)
+    }
 
     console.log(`Retargeted animation: ${source_clip.name} (${new_tracks.length} tracks)`)
     return retargeted_clip
+  }
+
+  /**
+   * Apply rotations to specific bones to correct them and normalize them for Mesh2Motion animations
+   */
+  private rotate_bone_for_retargeting (animation_clip: AnimationClip, bone_match_pattern: string, rotate_obj: Euler): void {
+    // Find all shoulder quaternion tracks (e.g., mixamorigLeftShoulder.quaternion)
+    const tracks_to_change = animation_clip.tracks.filter(track =>
+      track.name.toLowerCase().includes(bone_match_pattern.toLowerCase()) && track.name.includes('quaternion')
+    ) as Array<{ name: string, times: Float32Array | number[], values: Float32Array | number[] }>
+
+    if (tracks_to_change.length === 0) return
+
+    // Object axis rotation amount. Final value is quaternion
+    const rotation_amount: Quaternion = new Quaternion().setFromEuler(rotate_obj)
+
+    for (const track of tracks_to_change) {
+      const name_info = this.parse_track_name(track.name)
+      if (name_info === null) continue
+
+      const values = track.values
+      for (let i = 0; i < values.length; i += 4) {
+        const original_quat: Quaternion = new Quaternion(
+          values[i], // x
+          values[i + 1], // y
+          values[i + 2], // z
+          values[i + 3] // w
+        )
+
+        // use premultiply to apply in world/object space
+        original_quat.premultiply(rotation_amount)
+
+        values[i] = original_quat.x
+        values[i + 1] = original_quat.y
+        values[i + 2] = original_quat.z
+        values[i + 3] = original_quat.w
+      }
+    }
   }
 
   /**
@@ -277,16 +318,9 @@ export class RetargetAnimationPreview extends EventTarget {
    * Mixamo rigs don't have a root bone, so we need to rotate the hips by -90 degrees on X axis
    */
   private apply_mixamo_corrections (animation_clip: AnimationClip): void {
-    const target_mapping_type = this.step_bone_mapping.get_target_mapping_template()
-    
-    if (target_mapping_type !== TargetBoneMappingType.Mixamo) {
-      return // Only apply corrections for Mixamo rigs
-    }
-
-    console.log('Applying Mixamo hips rotation correction (-90 degrees on X axis)')
-
+    // apply hip rotation correct. TODO: extract this to a separate class for rotation
     // Find the hips quaternion track (Mixamo uses "mixamorigHips.quaternion")
-    const hips_track = animation_clip.tracks.find(track => 
+    const hips_track = animation_clip.tracks.find(track =>
       track.name.toLowerCase().includes('hips') && track.name.includes('quaternion')
     )
 
@@ -295,26 +329,30 @@ export class RetargetAnimationPreview extends EventTarget {
     const correction_rotation = new Quaternion().setFromEuler(new Euler(-Math.PI / 2, 0, 0, 'XYZ'))
 
     // Apply correction to all keyframes in the hips track
-    const values = hips_track.values
-    for (let i = 0; i < values.length; i += 4) {
-      const original_quat = new Quaternion(
-        values[i],     // x
-        values[i + 1], // y
-        values[i + 2], // z
-        values[i + 3]  // w
-      )
+    const values = (hips_track as any)?.values as number[] | Float32Array | undefined
+    if (values !== undefined) {
+      for (let i = 0; i < values.length; i += 4) {
+        const original_quat = new Quaternion(
+          values[i], // x
+          values[i + 1], // y
+          values[i + 2], // z
+          values[i + 3] // w
+        )
 
-      // Apply the correction: multiply correction * original
-      original_quat.premultiply(correction_rotation)
+        // Apply the correction: multiply correction * original
+        original_quat.premultiply(correction_rotation)
 
-      // Write back the corrected quaternion
-      values[i] = original_quat.x
-      values[i + 1] = original_quat.y
-      values[i + 2] = original_quat.z
-      values[i + 3] = original_quat.w
+        // Write back the corrected quaternion
+        values[i] = original_quat.x
+        values[i + 1] = original_quat.y
+        values[i + 2] = original_quat.z
+        values[i + 3] = original_quat.w
+      }
+      console.log('Mixamo hips rotation correction applied')
     }
 
-    console.log('Mixamo hips rotation correction applied')
+    const rotation_amount: Euler = new Euler(-Math.PI, 0, 0, 'XYZ')
+    this.rotate_bone_for_retargeting(animation_clip, 'shoulder', rotation_amount)
   }
 
   /**
