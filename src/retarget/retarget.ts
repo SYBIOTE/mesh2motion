@@ -12,33 +12,35 @@ class RetargetModule {
   private readonly step_bone_mapping: StepBoneMapping
   private readonly retarget_animation_preview: RetargetAnimationPreview
 
+  private continue_button: HTMLButtonElement | null
+
   constructor () {
     // Set up camera position similar to marketing bootstrap
     this.mesh2motion_engine = new Mesh2MotionEngine()
     const camera_position = new Vector3().set(0, 1.7, 5)
     this.mesh2motion_engine.set_camera_position(camera_position)
-    
+
     // Override zoom limits for retargeting to accommodate models of various sizes
     // Allow closer zoom for small details and farther zoom for large models
     // FBX are known to have units with 1 = 1 cm, so things like mixamo will import at 200 units
     // GLB seems to have gone with 1 = 1 meter
     this.mesh2motion_engine.set_zoom_limits(0.1, 1000)
-   
+
     // Initialize Mesh2Motion skeleton loading step (source)
     this.step_load_source_skeleton = new StepLoadSourceSkeleton(this.mesh2motion_engine.get_scene())
-    
+
     // Initialize target model loading step
     this.step_load_target_model = new StepLoadTargetModel(this.mesh2motion_engine)
-    
+
     // Initialize bone mapping step
     this.step_bone_mapping = new StepBoneMapping(this.mesh2motion_engine.get_scene())
-    
+
     // Initialize animation preview
     this.retarget_animation_preview = new RetargetAnimationPreview(
       this.mesh2motion_engine.get_scene(),
       this.step_bone_mapping
     )
-    
+
     // Set up animation loop for preview updates
     this.setup_animation_loop()
   }
@@ -59,15 +61,23 @@ class RetargetModule {
       this.step_bone_mapping.set_source_skeleton_data(source_armature, skeleton_type)
       this.try_start_preview()
     })
-    
+
     // Listen for target model (user-uploaded) loaded
     this.step_load_target_model.addEventListener('target-model-loaded', (event: Event) => {
       const custom_event = event as CustomEvent
       const retargetable_meshes = custom_event.detail.retargetable_meshes as Group<Object3DEventMap>
-      
+
       // Set target skeleton data in bone mapping (uploaded mesh)
       this.step_bone_mapping.set_target_skeleton_data(retargetable_meshes)
       this.try_start_preview()
+
+      // Show "Continue" button to proceed to animation listing
+      this.continue_button = document.getElementById('continue-to-listing-button') as HTMLButtonElement
+      this.continue_button.style.display = 'block'
+      this.continue_button.onclick = () => {
+        // TODO: Hide the bone mapping panel and show the animation listing panel
+        console.log('Continue to animation listing clicked')
+      }
     })
   }
 
@@ -83,20 +93,21 @@ class RetargetModule {
 
   private setup_animation_loop (): void {
     let last_time = performance.now()
-    
+
     const animate = (): void => {
       requestAnimationFrame(animate)
-      
+
       const current_time = performance.now()
       const delta_time = (current_time - last_time) / 1000 // Convert to seconds
       last_time = current_time
-      
+
       // Update animation preview
       this.retarget_animation_preview.update(delta_time)
     }
-    
+
     animate()
-  }}
+  }
+}
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
@@ -104,5 +115,3 @@ document.addEventListener('DOMContentLoaded', () => {
 })
 
 const retarget_app = new RetargetModule()
-
-
