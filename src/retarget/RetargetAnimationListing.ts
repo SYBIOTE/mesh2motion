@@ -228,11 +228,21 @@ export class RetargetAnimationListing extends EventTarget {
     // configure export animations button
     this.export_button = document.getElementById('export-retargeting-button') as HTMLButtonElement
     this.export_button?.addEventListener('click', () => {
+      // send in all the selected animation clips for export
       this.step_export_retargeted_animations.set_animation_clips_to_export(
         this.animation_clips_loaded.map(clip => clip.display_animation_clip),
         this.get_selected_animation_indices()
       )
-      this.step_export_retargeted_animations.export(this.skinned_meshes_to_animate, 'retargeted_animations')
+
+      // configure the export out step with retargeting info
+      this.step_export_retargeted_animations.setup_retargeting(
+        this.skinned_meshes_to_animate,
+        this.step_bone_mapping.get_bone_mapping(),
+        this.step_bone_mapping.get_target_mapping_template(),
+        this.step_bone_mapping.get_source_armature(),
+        this.step_bone_mapping.get_target_skeleton_data()
+      )
+      this.step_export_retargeted_animations.export('retargeted_animations')
     })
   }
 
