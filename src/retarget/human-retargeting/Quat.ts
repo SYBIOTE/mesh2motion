@@ -4,7 +4,7 @@ import Vec3 from './Vec3.js'
 // they are implicitly created by the Array base class.
 export default class Quat extends Array {
   // optional copy contructor
-  constructor (v: number[] | null = null) {
+  constructor (v: Quat | null = null) {
     super(4)
     if (v?.length === 4) this.copy(v)
     else this.identity()
@@ -183,16 +183,16 @@ export default class Quat extends Array {
     // fromSwing
     const dot = Vec3.dot(a, b)
     if (dot < -0.999999) { // 180 opposites
-      const tmp = new Vec3().fromCross([-1, 0, 0], a)
+      const tmp = new Vec3().fromCross(new Vec3(-1, 0, 0), a)
 
-      if (tmp.len < 0.000001) tmp.fromCross([0, 1, 0], a)
+      if (tmp.len < 0.000001) tmp.fromCross(new Vec3(0, 1, 0), a)
       this.pmulAxisAngle(tmp.norm(), Math.PI)
       return this
     } else if (dot > 0.999999) { // Same Direction
       return this // Creates identity, so exist early
     }
 
-    const v = Vec3.cross(a, b, [0, 0, 0])
+    const v = Vec3.cross(a, b, new Vec3(0, 0, 0))
     let ax = v[0]
     let ay = v[1]
     let az = v[2]
@@ -291,7 +291,7 @@ export default class Quat extends Array {
     return this
   }
 
-  fromPolar (lon: number, lat: number, up = null): this {
+  fromPolar (lon: number, lat: number, up: Vec3 | null = null): this {
     lat = Math.max(Math.min(lat, 89.999999), -89.999999) // Clamp lat, going to 90+ makes things spring around.
 
     const phi = (90 - lat) * 0.01745329251 // PI / 180
@@ -304,11 +304,11 @@ export default class Quat extends Array {
       phi_s * Math.cos(theta)
     ] as Vec3
 
-    this.fromLook(v, up || [0, 1, 0])
+    this.fromLook(v, up || new Vec3(0, 1, 0))
     return this
   }
 
-  fromLook (fwd: Vec3, up = [0, 1, 0]): this {
+  fromLook (fwd: Vec3, up: Vec3 = new Vec3(0, 1, 0)): this {
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // Orthogonal axes to make a mat3x3
     const zAxis = new Vec3(fwd)
@@ -368,9 +368,9 @@ export default class Quat extends Array {
     const dot = Vec3.dot(a, b)
 
     if (dot < -0.999999) { // 180 opposites
-      const tmp = new Vec3().fromCross([-1, 0, 0], a)
+      const tmp = new Vec3().fromCross(new Vec3(-1, 0, 0), a)
 
-      if (tmp.len < 0.000001) tmp.fromCross([0, 1, 0], a)
+      if (tmp.len < 0.000001) tmp.fromCross(new Vec3(0, 1, 0), a)
       this.fromAxisAngle(tmp.norm(), Math.PI)
     } else if (dot > 0.999999) { // Same Direction
       this[0] = 0
@@ -378,7 +378,7 @@ export default class Quat extends Array {
       this[2] = 0
       this[3] = 1
     } else {
-      const v = Vec3.cross(a, b, [0, 0, 0])
+      const v = Vec3.cross(a, b, new Vec3(0, 0, 0))
       this[0] = v[0]
       this[1] = v[1]
       this[2] = v[2]
@@ -401,11 +401,20 @@ export default class Quat extends Array {
   }
 
   fromAxes (xAxis: Vec3, yAxis: Vec3, zAxis: Vec3): this {
-    const m00 = xAxis[0]; const m01 = xAxis[1]; const m02 = xAxis[2]
-    const m10 = yAxis[0]; const m11 = yAxis[1]; const m12 = yAxis[2]
-    const m20 = zAxis[0]; const m21 = zAxis[1]; const m22 = zAxis[2]
-    const t = m00 + m11 + m22
-    let x, y, z, w, s
+    const m00: number = xAxis[0]
+    const m01: number = xAxis[1]
+    const m02: number = xAxis[2]
+
+    const m10: number = yAxis[0]
+    const m11: number = yAxis[1]
+    const m12: number = yAxis[2]
+
+    const m20: number = zAxis[0]
+    const m21: number = zAxis[1]
+    const m22: number = zAxis[2]
+
+    const t: number = m00 + m11 + m22
+    let x: number, y: number, z: number, w: number, s: number
 
     if (t > 0.0) {
       s = Math.sqrt(t + 1.0)

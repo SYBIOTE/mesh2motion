@@ -6,7 +6,7 @@ import Vec3 from './Vec3'
 
 export default class Transform {
   // #region MAIN
-  private rot: Quat = new Quat([0, 0, 0, 1])
+  public rot: Quat = new Quat([0, 0, 0, 1])
   public pos: Vec3 = new Vec3()
   public scl: Vec3 = new Vec3(1, 1, 1)
 
@@ -71,11 +71,11 @@ export default class Transform {
   mul (tran: Transform): this {
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // POSITION - parent.position + ( parent.rotation * ( parent.scale * child.position ) )
-    const p = [
+    const p = new Vec3(
       this.scl[0] * tran.pos[0], // Scale
       this.scl[1] * tran.pos[1],
       this.scl[2] * tran.pos[2]
-    ]
+    )
 
     qTransform(this.rot, p, p) // Rotation
     this.pos[0] += p[0] // Translation
@@ -132,11 +132,11 @@ export default class Transform {
   fromMul (tp: Transform, tc: Transform): this {
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // POSITION - parent.position + (  ( parent.scale * child.position ) * parent.rotation )
-    const v = [ // parent.scale * child.position
+    const v = new Vec3( // parent.scale * child.position
       tp.scl[0] * tc.pos[0],
       tp.scl[1] * tc.pos[1],
       tp.scl[2] * tc.pos[2]
-    ]
+    )
 
     qTransform(tp.rot, v, v) // * parent.rotation
     this.pos[0] = tp.pos[0] + v[0] // parent.position +
@@ -250,29 +250,30 @@ export default class Transform {
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // Invert Transform Rot & Scl
     const qi = qInvert(this.rot)
-    const si = [
+    const si = new Vec3(
       1 / this.scl[0],
       1 / this.scl[1],
       1 / this.scl[2]
-    ]
+    )
 
     // Invert Transform Pos
-    const pi = [
+    const pi = new Vec3(
       -this.pos[0] * si[0],
       -this.pos[1] * si[1],
       -this.pos[2] * si[2]
-    ]
+    )
+
     qTransform(qi, pi, pi)
 
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // Invert Transform on WorldSpace Position
     // invertRot * ( invertScl * WPos ) + invertPos;
 
-    const p = [
+    const p = new Vec3(
       si[0] * wp[0],
       si[1] * wp[1],
       si[2] * wp[2]
-    ]
+    )
 
     qTransform(qi, p, p)
 
@@ -282,7 +283,7 @@ export default class Transform {
     return out
   }
 
-  toLocalRot (wq: number[], out: number[] = [0, 0, 0, 1]): number[] {
+  toLocalRot (wq: Quat, out: Quat = new Quat([0, 0, 0, 1])): number[] {
     return qMul(qInvert(this.rot), wq, out)
   }
 
@@ -314,11 +315,11 @@ function qInvert (q: Quat, out: Quat = new Quat([0, 0, 0, 1])): Quat {
 
   if (dot === 0) { out[0] = out[1] = out[2] = out[3] = 0; return out }
 
-  const iDot = 1.0 / dot // let invDot = dot ? 1.0/dot : 0;
-  out[0] = -a0 * iDot
-  out[1] = -a1 * iDot
-  out[2] = -a2 * iDot
-  out[3] = a3 * iDot
+  const inverse_dot_product = 1.0 / dot // let invDot = dot ? 1.0/dot : 0;
+  out[0] = -a0 * inverse_dot_product
+  out[1] = -a1 * inverse_dot_product
+  out[2] = -a2 * inverse_dot_product
+  out[3] = a3 * inverse_dot_product
   return out
 }
 

@@ -1,4 +1,8 @@
-import { Transform } from './Transform'
+import { Joint } from './Joint'
+import type Quat from './Quat'
+import Transform from './Transform'
+import * as THREE from 'three'
+import type Vec3 from './Vec3'
 
 // Threejs does not have a method to clone a skeleton that works correctly.
 // Pose allows to make copies of a skeleton state. This is great to cache
@@ -6,19 +10,27 @@ import { Transform } from './Transform'
 // commiting the results to the skeleton
 export class Pose {
   // #region MAIN
-  srcPose = null
-  nameIdx = new Map()
-  joints = []
-  rootOffset = new Transform() // Absolute root transform
-  poseOffset = new Transform() // Offset applied to pose
-  constructor (skel) {
-    if (skel) this.fromSkeleton(skel)
+  public srcPose: Pose | null = null
+  public nameIdx = new Map<string, number>()
+  public joints: Joint[] = []
+  public rootOffset = new Transform() // Absolute root transform
+  public poseOffset = new Transform() // Offset applied to pose
+
+  constructor (skel?: THREE.Skeleton) {
+    if (skel !== undefined) {
+      this.fromSkeleton(skel)
+    }
   }
   // #endregion
 
   // #region GETTERS / SETTERS
 
-  getJoint (o) {
+  /**
+   * Gets the joint by index or name
+   * @param o either index of joint, or string name of joint
+   * @returns joint object
+   */
+  getJoint (o: number | string): Joint | null {
     switch (typeof o) {
       case 'number': return this.joints[o]
       case 'string': {
@@ -26,10 +38,11 @@ export class Pose {
         return (idx !== undefined) ? this.joints[idx] : null
       }
     }
+
     return null
   }
 
-  clone () {
+  public clone (): Pose {
     const p = new Pose()
     p.rootOffset.copy(this.rootOffset)
     p.poseOffset.copy(this.poseOffset)
@@ -41,11 +54,11 @@ export class Pose {
     return p
   }
 
-  fromSkeleton (skel) {
+  fromSkeleton (skel: THREE.Skeleton): void {
     this.nameIdx.clear()
 
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    let j
+    let j: Joint
     for (const [i, b] of skel.bones.entries()) {
       // console.log( i, b );
       // Create Joint
@@ -57,7 +70,12 @@ export class Pose {
 
       // Link up parent-child relationshop
       if ((b.parent?.isBone)) {
-        j.pindex = this.nameIdx.get(b.parent.name)
+        const name_index: number | undefined = this.nameIdx.get(b.parent.name)
+
+        if (name_index !== undefined) {
+          j.pindex = name_index
+        }
+
         this.joints[j.pindex].children.push(j.index)
       }
 
@@ -67,9 +85,11 @@ export class Pose {
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // Get pose offset transform
 
-    const b = skel.bones[0]
-    if (b.parent) {
+    const b: THREE.Bone = skel.bones[0]
+    if (b !== null) {
       const v = new THREE.Vector3()
+
+
       b.parent.getWorldPosition(v)
       this.poseOffset.pos[0] = v.x
       this.poseOffset.pos[1] = v.y
@@ -91,7 +111,7 @@ export class Pose {
     this.updateWorld()
   }
 
-  reset () {
+  reset (): this {
     if (!this.srcPose) { console.log('Pose.reset - No source available for resetting'); return }
 
     for (let i = 0; i < this.joints.length; i++) {
@@ -101,8 +121,8 @@ export class Pose {
     return this
   }
 
-  toSkeleton (skel) {
-    let j
+  toSkeleton (skel: THREE.Skeleton): void {
+    let j: Joint
     for (const [i, b] of skel.bones.entries()) {
       j = this.joints[i]
       b.position.fromArray(j.local.pos)
@@ -111,7 +131,7 @@ export class Pose {
     }
   }
 
-  setRot (i, rot) {
+  setRot (i: number, rot: Quat): this {
     const r = this.joints[i].local.rot
     r[0] = rot[0]
     r[1] = rot[1]
@@ -120,7 +140,7 @@ export class Pose {
     return this
   }
 
-  setPos (i, pos) {
+  setPos (i: number, pos: Vec3): this {
     const p = this.joints[i].local.pos
     p[0] = pos[0]
     p[1] = pos[1]
@@ -128,7 +148,7 @@ export class Pose {
     return this
   }
 
-  setScl (i, scl) {
+  setScl (i: number, scl: Vec3): this {
     const p = this.joints[i].local.scl
     p[0] = scl[0]
     p[1] = scl[1]
@@ -136,7 +156,7 @@ export class Pose {
     return this
   }
 
-  setScalar (i, s) {
+  setScalar (i: number, s: number): this {
     const p = this.joints[i].local.scl
     p[0] = s
     p[1] = s
@@ -147,7 +167,7 @@ export class Pose {
   // #endregion
 
   // #region COMPUTE
-  updateWorld () {
+  updateWorld (): this {
     for (const j of this.joints) {
       if (j.pindex !== -1) {
         // Parent Exists
@@ -163,12 +183,16 @@ export class Pose {
     return this
   }
 
-  getWorld (id, out = new Transform()) {
-    let joint = this.getJoint(id)
+  getWorld (id: number, out = new Transform()): Transform {
+    let joint: Joint | null = this.getJoint(id)
 
-    if (!joint) {
-      if (id === -1) out.fromMul(this.rootOffset, this.poseOffset)
-      else console.error('Pose.getWorld - joint not found', id)
+    if (joint === null) {
+      if (id === -1) {
+        out.fromMul(this.rootOffset, this.poseOffset)
+      } else {
+        console.error('Pose.getWorld - joint not found', id)
+      }
+
       return out
     }
 
@@ -188,19 +212,20 @@ export class Pose {
   // #endregion
 
   // #region DEBUGGING
-  debug () {
-    const LN = 0x707070
-    const PT = 0x505050
+  // debug (): this {
+  //   const LN: number = 0x707070
+  //   const PT: number = 0x505050
 
-    let c
-    for (const j of this.joints) {
-      Debug.pnt.add(j.world.pos, PT, 0.7)
-      for (const i of j.children) {
-        c = this.joints[i]
-        Debug.ln.add(j.world.pos, c.world.pos, LN)
-      }
-    }
-    return this
-  }
+  //   let c
+  //   for (const j of this.joints) {
+  //     Debug.pnt.add(j.world.pos, PT, 0.7)
+  //     for (const i of j.children) {
+  //       c = this.joints[i]
+  //       Debug.ln.add(j.world.pos, c.world.pos, LN)
+  //     }
+  //   }
+  //   return this
+  // }
+
   // #endregion
 }

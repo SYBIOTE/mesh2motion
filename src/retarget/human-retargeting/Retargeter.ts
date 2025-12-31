@@ -5,29 +5,33 @@ import { type ChainTwistAdditive } from './ChainTwistAdditive'
 import Vec3 from './Vec3'
 import Quat from './Quat'
 import Transform from './Transform'
+import { type RigItem } from './RigItem'
+import { Joint } from './Joint'
 
 // example and library functions taken from sketchpunklabs
 // https://github.com/sketchpunklabs/threejs_proto/blob/main/code/webgl/anim/002_retarget_4m2m.html
 
 export class Retargeter {
-  clip: THREE.AnimationClip | null = null
-  mixer: THREE.AnimationMixer
-  action: THREE.AnimationAction | null = null
-  srcRig: Rig | null = null
-  tarRig: Rig | null = null
-  pose: Pose | null = null
-  additives: ChainTwistAdditive[] = []
-
-  // #region MAIN
-  constructor () {
-    this.mixer = new THREE.AnimationMixer(new THREE.Object3D())
-  }
-  // #endregion
+  private clip: THREE.AnimationClip | null = null
+  private readonly mixer: THREE.AnimationMixer = new THREE.AnimationMixer(new THREE.Object3D())
+  private action: THREE.AnimationAction | null = null
+  public srcRig: Rig | null = null
+  public tarRig: Rig | null = null
+  public pose: Pose | null = null
+  public readonly additives: ChainTwistAdditive[] = []
 
   // #region SETTERS
-  setSourceRig (rig: any) { this.srcRig = rig; return this }
-  setTargetRig (rig: any) { this.tarRig = rig; return this }
-  setClip (clip) {
+  public setSourceRig (rig: Rig): this {
+    this.srcRig = rig
+    return this
+  }
+
+  public setTargetRig (rig: Rig): this {
+    this.tarRig = rig
+    return this
+  }
+
+  public setClip (clip: THREE.AnimationClip): this {
     this.clip = clip
 
     if (this.action !== null) {
@@ -40,7 +44,12 @@ export class Retargeter {
   // #endregion
 
   // #region METHODS
-  update (delta_time: number): void {
+  public update (delta_time: number): void {
+    if (this.srcRig === null || this.tarRig === null || this.clip === null) {
+      console.warn('Retargeter: Missing srcRig, tarRig, or clip.')
+      return
+    }
+
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // PREPARE
     if (this.action === null) {
@@ -79,44 +88,53 @@ export class Retargeter {
   }
 
   // Apply SwingTwist to each joint of a chain, 1 to 1 mappings
-  applyChain (k) {
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    const src = this.srcRig.chains[k]
-    const tar = this.tarRig.chains[k]
-    if (!src || !tar) return
+  // k = chain key like 'pelvis', 'armL', etc
+  applyChain (k: string): void {
+    if (this.srcRig === null || this.tarRig === null || this.pose === null) {
+      console.warn('Retargeter: Missing srcRig, tarRig, or pose.')
+      return
+    }
 
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    const cnt = src.length
-    const v = new THREE.Vector3()
-    const q = new THREE.Quaternion()
+    const src: RigItem[] = this.srcRig.chains[k]
+    const tar: RigItem[] = this.tarRig.chains[k]
+    if (src === null || tar === null) {
+      console.warn('Retargeter: Missing source or target chain for key ', k)
+      return
+    }
 
-    const p = new Vec3()
-    const sPos = new Vec3()
-    const sRot = new Quat()
-    const tRot = new Quat()
-    const rot = new Quat()
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // const cnt = src.length
+    const v: Vec3 = new Vec3()
+    const q: Quat = new Quat()
 
-    const sSwing = new Vec3() // Source Swing
-    const sTwist = new Vec3() // Source Twist
-    const nSwing = new Vec3()
-    const nTwist = new Vec3()
+    // const p = new Vec3()
+    const sPos: Vec3 = new Vec3()
+    const sRot: Quat = new Quat()
+    const tRot: Quat = new Quat()
+    const rot: Quat = new Quat()
 
-    const ptran = new Transform()
-    const ctran = new Transform()
+    const sSwing: Vec3 = new Vec3() // Source Swing
+    const sTwist: Vec3 = new Vec3() // Source Twist
+    const nSwing: Vec3 = new Vec3()
+    const nTwist: Vec3 = new Vec3()
 
-    let b
+    const ptran: Transform = new Transform()
+    const ctran: Transform = new Transform()
+
+    let b: THREE.Bone
     let j
 
     for (let i = 0; i < src.length; i++) {
       // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
       // Get source swing / twist vectors
       // Pose exists in 3JS skeleton, so need to get its
-      // Data threw 3JS methods
+      // Data through 3JS methods
       b = this.srcRig.skel.bones[src[i].idx]
-      b.getWorldPosition(v)
-      b.getWorldQuaternion(q)
-      sPos.copyObj(v)
-      sRot.copyObj(q)
+      b.getWorldPosition(new THREE.Vector3(v[0], v[1], v[2]))
+      b.getWorldQuaternion(new THREE.Quaternion(q[0], q[1], q[2], q[3]))
+      sPos.copyTo(v)
+      sRot.copyTo(q)
 
       sSwing.fromQuat(sRot, src[i].swing)
       sTwist.fromQuat(sRot, src[i].twist)
@@ -152,103 +170,168 @@ export class Retargeter {
 
       // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
       // Visualize computed target vectors from source animation
-      Debug.pnt.add(sPos, 0xffff00, 1)
-      Debug.ln.add(sPos, p.fromScaleThenAdd(0.1, sSwing, sPos), 0xffff00)
-      Debug.ln.add(sPos, p.fromScaleThenAdd(0.1, sTwist, sPos), 0xff00ff)
+      // Debug.pnt.add(sPos, 0xffff00, 1)
+      // Debug.ln.add(sPos, p.fromScaleThenAdd(0.1, sSwing, sPos), 0xffff00)
+      // Debug.ln.add(sPos, p.fromScaleThenAdd(0.1, sTwist, sPos), 0xff00ff)
 
       // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
       // Visualize target vectors over mesh
-      Debug.pnt.add(ctran.pos, 0x00ff00, 1)
-      Debug.ln.add(ctran.pos, p.fromScaleThenAdd(0.15, nSwing, ctran.pos), 0xffff00)
-      Debug.ln.add(ctran.pos, p.fromScaleThenAdd(0.1, nSwing, ctran.pos), 0xffffff)
-      Debug.ln.add(ctran.pos, p.fromScaleThenAdd(0.15, nTwist, ctran.pos), 0xff00ff)
-      Debug.ln.add(ctran.pos, p.fromScaleThenAdd(0.1, nTwist, ctran.pos), 0xff0000)
+      // Debug.pnt.add(ctran.pos, 0x00ff00, 1)
+      // Debug.ln.add(ctran.pos, p.fromScaleThenAdd(0.15, nSwing, ctran.pos), 0xffff00)
+      // Debug.ln.add(ctran.pos, p.fromScaleThenAdd(0.1, nSwing, ctran.pos), 0xffffff)
+      // Debug.ln.add(ctran.pos, p.fromScaleThenAdd(0.15, nTwist, ctran.pos), 0xff00ff)
+      // Debug.ln.add(ctran.pos, p.fromScaleThenAdd(0.1, nTwist, ctran.pos), 0xff0000)
     }
   }
 
   // Interp start & end SwingTwist vectors over a chain
-  applyEndInterp (k) {
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    const src = this.srcRig.chains[k]
-    const tar = this.tarRig.chains[k]
-    if (!src || !tar) return
-
-    const dTran = new Transform() // Debug
-    const vv = new Vec3() // Debug
+  // k = chain key like 'spine', etc
+  applyEndInterp (k: string): void {
+    if (this.srcRig === null || this.tarRig === null || this.pose === null) {
+      console.warn('Retargeter: Missing srcRig, tarRig, or pose.')
+      return
+    }
 
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    const aTran = getWorld(this.srcRig.skel, src[0].idx)
+    const src: RigItem[] = this.srcRig.chains[k]
+    const tar: RigItem[] = this.tarRig.chains[k]
+    if (src === null || tar === null) return
+
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    const aTran = this.getWorld(this.srcRig.skel, src[0].idx)
     const aSwing = new Vec3().fromQuat(aTran.rot, src[0].swing)
     const aTwist = new Vec3().fromQuat(aTran.rot, src[0].twist)
 
-    const bTran = getWorld(this.srcRig.skel, src.at(-1).idx)
-    const bSwing = new Vec3().fromQuat(bTran.rot, src.at(-1).swing)
-    const bTwist = new Vec3().fromQuat(bTran.rot, src.at(-1).twist)
+    const bTran = this.getWorld(this.srcRig.skel, src[src.length - 1].idx)
+    const bSwing = new Vec3().fromQuat(bTran.rot, src[src.length - 1].swing)
+    const bTwist = new Vec3().fromQuat(bTran.rot, src[src.length - 1].twist)
 
     // Visualize data over source skeleton
-    Debug.pnt.add(aTran.pos, 0xffff00, 1.2)
-    Debug.pnt.add(bTran.pos, 0xffff00, 1.2)
+    // Debug.pnt.add(aTran.pos, 0xffff00, 1.2)
+    // Debug.pnt.add(bTran.pos, 0xffff00, 1.2)
 
-    Debug.ln.add(aTran.pos, vv.fromScaleThenAdd(0.1, aSwing, aTran.pos), 0xffff00)
-    Debug.ln.add(aTran.pos, vv.fromScaleThenAdd(0.1, aTwist, aTran.pos), 0xff00ff)
-    Debug.ln.add(bTran.pos, vv.fromScaleThenAdd(0.1, bSwing, bTran.pos), 0xffff00)
-    Debug.ln.add(bTran.pos, vv.fromScaleThenAdd(0.1, bTwist, bTran.pos), 0xff00ff)
+    // Debug.ln.add(aTran.pos, vv.fromScaleThenAdd(0.1, aSwing, aTran.pos), 0xffff00)
+    // Debug.ln.add(aTran.pos, vv.fromScaleThenAdd(0.1, aTwist, aTran.pos), 0xff00ff)
+    // Debug.ln.add(bTran.pos, vv.fromScaleThenAdd(0.1, bSwing, bTran.pos), 0xffff00)
+    // Debug.ln.add(bTran.pos, vv.fromScaleThenAdd(0.1, bTwist, bTran.pos), 0xff00ff)
 
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    const tDir = new Vec3()
-    const dir = new Vec3()
-    const iMax = tar.length - 1
-    let itm, t, j
+    const target_dir: Vec3 = new Vec3()
+    const target_twist: Vec3 = new Vec3()
+    const rig_items_count: number = tar.length - 1
+    let itm: RigItem
+    let t: number // 0-1 lerp factor for chain
 
-    for (let i = 0; i <= iMax; i++) {
-      t = i / iMax
+    for (let i = 0; i <= rig_items_count; i++) {
+      t = i / rig_items_count
       itm = tar[i]
 
       // Lerp Target Vectors
-      tDir.fromLerp(aSwing, bSwing, t).norm()
-      dir.fromLerp(aTwist, bTwist, t).norm()
+      target_dir.fromLerp(aSwing, bSwing, t).norm()
+      target_twist.fromLerp(aTwist, bTwist, t).norm()
 
       // Make joint vectors match target vectors
-      const rot = applySwingTwist(itm, tDir, dir, this.tarRig.tpose, this.pose)
+      const rot = this.applySwingTwist(itm, target_dir, target_twist, this.tarRig.tpose, this.pose)
       this.pose.setRot(itm.idx, rot)
 
       // -----------------------
-      this.pose.getWorld(itm.idx, dTran)
-      Debug.pnt.add(dTran.pos, 0x00ff00, 1, 1)
-      Debug.ln.add(dTran.pos, vv.fromQuat(dTran.rot, itm.swing).scale(0.1).add(dTran.pos), 0xffff00)
-      Debug.ln.add(dTran.pos, vv.fromQuat(dTran.rot, itm.twist).scale(0.1).add(dTran.pos), 0xff00ff)
+      const debug_transform: Transform = new Transform() // Debug
+      this.pose.getWorld(itm.idx, debug_transform)
+      // const vv: Vec3 = new Vec3() // Debug
+      // Debug.pnt.add(debug_transform.pos, 0x00ff00, 1, 1)
+      // Debug.ln.add(debug_transform.pos, vv.fromQuat(debug_transform.rot, itm.swing).scale(0.1).add(debug_transform.pos), 0xffff00)
+      // Debug.ln.add(debug_transform.pos, vv.fromQuat(debug_transform.rot, itm.twist).scale(0.1).add(debug_transform.pos), 0xff00ff)
     }
   }
 
   // Compute offset translation & scale it to fit better on target
-  applyScaledTranslation (k) {
+  applyScaledTranslation (k: string): void {
+    if (this.srcRig === null || this.tarRig === null || this.pose === null) {
+      console.warn('Retargeter: applyScaledTranslation(). Missing srcRig, tarRig, or pose.')
+      return
+    }
+
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // Make sure we have our src & target
-    const src = this.srcRig.chains[k][0]
-    const tar = this.tarRig.chains[k][0]
-    if (!src || !tar) return
+    const src: RigItem = this.srcRig.chains[k][0]
+    const tar: RigItem = this.tarRig.chains[k][0]
+    if (src === null || tar === null) return
 
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // Compute offset position change from animation
     const scl = this.tarRig.scalar / this.srcRig.scalar // Scale from Src to Tar
-    const tJoint = this.srcRig.tpose.joints[src.idx] // TPose Src Joint
-    const srcTran = getWorld(this.srcRig.skel, src.idx) // WS Tranform of Src Bone
+    const source_t_pose_joint: Joint = this.srcRig.tpose.joints[src.idx] // TPose Src Joint
+    const source_ws_transform: Transform = this.getWorld(this.srcRig.skel, src.idx) // WS Tranform of Src Bone
 
     // ( animated.joint.world.pos - tpose.joint.world.pos ) * ( tarHipHeight / srcHipHeight )
-    const offset = new Vec3()
-      .fromSub(srcTran.pos, tJoint.world.pos)
+    const offset: Vec3 = new Vec3()
+      .fromSub(source_ws_transform.pos, source_t_pose_joint.world.pos)
       .scale(scl)
 
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // Neutral Transform
-    const ptran = this.pose.getWorld(tar.pidx)
-    const ctran = new Transform().fromMul(ptran, this.tarRig.tpose.joints[tar.idx].local)
+    const ptran: Transform = this.pose.getWorld(tar.pidx)
+    const ctran: Transform = new Transform().fromMul(ptran, this.tarRig.tpose.joints[tar.idx].local)
 
     // Add scaled offset translation
-    const pos = new Vec3().fromAdd(ctran.pos, offset)
+    const pos: Vec3 = new Vec3().fromAdd(ctran.pos, offset)
 
     // Save to local space
     this.pose.setPos(tar.idx, ptran.toLocalPos(pos))
+  }
+  // #endregion
+
+  // #region THREEJS HELPERS
+  // Run 3KJS's GetWorld functions & return as a Transform Object
+  public getWorld (skel: THREE.Skeleton, bone_idx: number, trans: Transform = new Transform()): Transform {
+    const b: THREE.Bone = skel.bones[bone_idx]
+    const p: THREE.Vector3 = b.getWorldPosition(new THREE.Vector3())
+    const q: THREE.Quaternion = b.getWorldQuaternion(new THREE.Quaternion())
+
+    trans.pos[0] = p.x
+    trans.pos[1] = p.y
+    trans.pos[2] = p.z
+
+    trans.rot[0] = q.x
+    trans.rot[1] = q.y
+    trans.rot[2] = q.z
+    trans.rot[3] = q.w
+
+    // SCALE - Not Needed for this proto
+    return trans
+  }
+
+  // Make a rotation's invert directions match the target directions
+  // Create neutral transfroms for each joint as a starting point
+  // which is the current pose's parent joint worldspace transform applied
+  // to the local space tpose transform of the joint.
+  // This gives the transform of the joint as if itself has not change
+  // but its heirarchy has.
+  public applySwingTwist (itm: RigItem, tSwing: Vec3, tTwist: Vec3, tpose: Pose, pose: Pose): Quat {
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // Compute Neutral Transform of the joint
+    // curentPose.parentJoint.world.rot * tPose.joint.local.rot
+    const j: Joint = tpose.joints[itm.idx]
+    const ptran: Transform = pose.getWorld(j.pindex) // Get WS of current pose of parent joint
+    const ctran: Transform = new Transform().fromMul(ptran, j.local) // Apply to Tpose's locaa for neutral rotation
+    const dir: Vec3 = new Vec3()
+    const source_rot: Quat = new Quat()
+    const target_rot: Quat = new Quat()
+
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // SWING
+    dir.fromQuat(ctran.rot, itm.swing) // Get Worldspace direction
+    source_rot.fromSwing(dir, tSwing) // Compute rot current dir to target dir
+      .mul(ctran.rot) // PMul result to neutral rotation
+
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // Twist
+    dir.fromQuat(source_rot, itm.twist) // Get WS twist direction after swring rotation
+    target_rot.fromSwing(dir, tTwist) // Compute rot to make twist vectors match
+      .mul(source_rot) // twist * ( swing * neutral )
+      .pmulInvert(ptran.rot) // To Localspace
+
+    return target_rot
   }
   // #endregion
 }

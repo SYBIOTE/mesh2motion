@@ -194,24 +194,24 @@ export default class Vec3 extends Array {
     return this
   }
 
-  scale (v: number): this {
-    this[0] *= v
-    this[1] *= v
-    this[2] *= v
+  scale (scalar: number): this {
+    this[0] *= scalar
+    this[1] *= scalar
+    this[2] *= scalar
     return this
   }
 
-  invScale (v: number): this {
-    this[0] /= v
-    this[1] /= v
-    this[2] /= v
+  invScale (scalar: number): this {
+    this[0] /= scalar
+    this[1] /= scalar
+    this[2] /= scalar
     return this
   }
 
-  scaleThenAdd (s: number, v: Vec3): this {
-    this[0] += v[0] * s
-    this[1] += v[1] * s
-    this[2] += v[2] * s
+  scaleThenAdd (scalar: number, v: Vec3): this {
+    this[0] += v[0] * scalar
+    this[1] += v[1] * scalar
+    this[2] += v[2] * scalar
     return this
   }
 
