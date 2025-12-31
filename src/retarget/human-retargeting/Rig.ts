@@ -1,8 +1,19 @@
 // Setup a standard definition of what a Humanoid is. The rig
 // allows to work with different skeletons with various joint
 // naming convention. This makes it easier to build a system
+
+import { Pose } from './Pose'
+import { RigItem } from './RigItem'
+import Transform from './Transform'
+import Vec3 from './Vec3'
+
 // that speaks a single language of whats what.
 export class Rig {
+  private readonly skel: any
+  private readonly tpose: Pose
+  private readonly chains: Record<string, RigItem[]>
+  private scalar: number
+
   constructor (skel) {
     this.skel = skel
     this.chains = {}
@@ -11,7 +22,7 @@ export class Rig {
     // this.tpose.debug();
   }
 
-  fromConfig (cfg = {}) {
+  fromConfig (cfg = {}): this {
     for (const [k, v] of Object.entries(cfg)) {
       switch (k) {
         case 'pelvis' : this.buildItem(k, v.names, [0, 0, 1], [0, 1, 0]).buildScalar(k); break
@@ -28,7 +39,7 @@ export class Rig {
     return this
   }
 
-  buildItem (k, names, swing, twist) {
+  buildItem (k, names: string[], swing, twist): this {
     const ary = []
     let j
 
@@ -43,14 +54,14 @@ export class Rig {
     return this
   }
 
-  buildScalar (k) {
+  buildScalar (k): this {
     const ch = this.chains[k]
     const j = this.tpose.joints[ch[0].idx]
     this.scalar = j.world.pos[1]
     return this
   }
 
-  debugSkelVectors () {
+  debugSkelVectors (): void {
     // const bAry = this.skel.bones;
     const tran = new Transform()
     const v = new Vec3()
@@ -69,9 +80,9 @@ export class Rig {
     }
   }
 
-  debugTPoseVectors () {
+  debugTPoseVectors (): void {
     // const bAry = this.skel.bones;
-    const tran = new Transform()
+    const tran: Transform = new Transform()
     const v = new Vec3()
 
     for (const [chName, ch] of Object.entries(this.chains)) {
