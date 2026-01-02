@@ -19,6 +19,8 @@ export class Retargeter {
   private readonly action: THREE.AnimationAction
   public pose: Pose
   public readonly additives: ChainTwistAdditive[] = []
+  private animation_frame_id: number | null = null
+  private last_time: number = 0
 
   constructor (source_rig: Rig, target_rig: Rig, clip: THREE.AnimationClip) {
     this.srcRig = source_rig
@@ -55,6 +57,117 @@ export class Retargeter {
 
     // Apply working pose to 3JS skeleton for rendering
     this.pose.toSkeleton(this.tarRig.skel)
+  }
+
+  /**
+   * Start an animation loop that continuously updates the retargeting
+   * Uses requestAnimationFrame for smooth animation updates
+   */
+  public start_testing_animation (): void {
+    // Initialize last_time on first call
+    this.last_time = performance.now()
+
+    const animate = (current_time: number): void => {
+      // Calculate delta time in seconds
+      const delta_time = (current_time - this.last_time) / 1000
+      this.last_time = current_time
+
+      // Update retargeting with calculated delta
+      this.update(delta_time)
+
+      // Continue the animation loop
+      this.animation_frame_id = requestAnimationFrame(animate)
+    }
+
+    // Start the animation loop
+    this.animation_frame_id = requestAnimationFrame(animate)
+  }
+
+  /**
+   * Stop the animation loop started by start_testing_animation()
+   */
+  public stop_testing_animation (): void {
+    if (this.animation_frame_id !== null) {
+      cancelAnimationFrame(this.animation_frame_id)
+      this.animation_frame_id = null
+    }
+  }
+
+  /**
+   * Bake the retargeted animation into Three.js keyframe tracks
+   * Samples the animation at the specified frame rate and captures bone transforms
+   * @param fps - Frames per second to sample at (default: 30)
+   * @returns Array of keyframe tracks for the retargeted animation
+   */
+  public bake_animation_to_tracks (fps: number = 30): Array<THREE.QuaternionKeyframeTrack | THREE.VectorKeyframeTrack> {
+    const tracks: Array<THREE.QuaternionKeyframeTrack | THREE.VectorKeyframeTrack> = []
+    const duration = this.clip.duration
+    const frame_time = 1 / fps
+    const frame_count = Math.ceil(duration * fps) + 1
+
+    // Storage for keyframe data per bone
+    const bone_data = new Map<string, { times: number[], positions: number[], quaternions: number[] }>()
+
+    // Initialize storage for each bone in the target skeleton
+    this.tarRig.skel.bones.forEach((bone) => {
+      bone_data.set(bone.name, {
+        times: [],
+        positions: [],
+        quaternions: []
+      })
+    })
+
+    // Sample the animation at each frame
+    for (let frame = 0; frame < frame_count; frame++) {
+      const time = Math.min(frame * frame_time, duration)
+
+      // Update the retargeting with the current time
+      this.update(frame_time)
+
+      // Capture transforms from all bones in the target skeleton
+      this.tarRig.skel.bones.forEach((bone) => {
+        const data = bone_data.get(bone.name)
+        if (data === undefined) return
+
+        // Store time
+        data.times.push(time)
+
+        // Store position (x, y, z)
+        data.positions.push(bone.position.x, bone.position.y, bone.position.z)
+
+        // Store quaternion (x, y, z, w)
+        data.quaternions.push(
+          bone.quaternion.x,
+          bone.quaternion.y,
+          bone.quaternion.z,
+          bone.quaternion.w
+        )
+      })
+    }
+
+    // Create keyframe tracks from the captured data
+    bone_data.forEach((data, bone_name) => {
+      // Create quaternion track
+      const quat_track = new THREE.QuaternionKeyframeTrack(
+        `${bone_name}.quaternion`,
+        data.times,
+        data.quaternions
+      )
+      tracks.push(quat_track)
+
+      // TODO: Add this logic later to include root motion if correct bone
+      // Create position track
+      // const pos_track = new THREE.VectorKeyframeTrack(
+      //   `${bone_name}.position`,
+      //   data.times,
+      //   data.positions
+      // )
+      // tracks.push(pos_track)
+    })
+
+    console.log(`Baked ${frame_count} frames for ${this.tarRig.skel.bones.length} bones (${tracks.length} tracks)`)
+
+    return tracks
   }
 
   // Apply SwingTwist to each joint of a chain, 1 to 1 mappings

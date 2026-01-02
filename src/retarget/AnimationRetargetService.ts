@@ -204,9 +204,25 @@ export class AnimationRetargetService {
     //     (Ref.addTwist = new ChainTwistAdditive( 'armR', 0 * Math.PI / 180 )),
     // );
 
-    retargeter.update(0.001) // small delta to initalize
+    // Initialize the retargeter with a small delta
+    retargeter.update(0.001)
 
-    return source_clip
+    // Bake the retargeted animation into keyframe tracks
+    // 30 fps for input animations is usually sufficient for now
+    const retargeted_tracks: Array<QuaternionKeyframeTrack | VectorKeyframeTrack> = retargeter.bake_animation_to_tracks(30)
+
+    // Create and return the new retargeted animation clip
+    const retargeted_clip = new AnimationClip(
+      `${source_clip.name}_retargeted`,
+      source_clip.duration,
+      retargeted_tracks
+    )
+
+    console.log(`Swing-Twist retargeting complete: ${source_clip.name} -> ${retargeted_clip.name}`)
+    console.log('getting source clip before bone correction:', source_clip.tracks)
+    console.log('getting retargeted clip:', retargeted_clip.tracks)
+
+    return retargeted_clip
   }
 
   /**
