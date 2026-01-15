@@ -33,6 +33,7 @@ export class MarketingBootstrap {
     const fox_button: HTMLElement | null = document.getElementById('load-fox-model-button')
     const bird_button: HTMLElement | null = document.getElementById('load-bird-model-button')
     const dragon_button: HTMLElement | null = document.getElementById('load-dragon-model-button')
+    const kaiju_button: HTMLElement | null = document.getElementById('load-kaiju-button')
 
     human_button?.addEventListener('click', () => {
       this.mesh2motion_engine.load_model_step.clear_loaded_model_data()
@@ -60,6 +61,13 @@ export class MarketingBootstrap {
       this.mesh2motion_engine.load_model_step.load_model_file('../models/model-dragon.glb', 'glb')
       this.skeleton_type = SkeletonType.Dragon
       this.change_active_skeleton(dragon_button)
+    })
+
+    kaiju_button?.addEventListener('click', () => {
+      this.mesh2motion_engine.load_model_step.clear_loaded_model_data()
+      this.mesh2motion_engine.load_model_step.load_model_file('../models/model-kaiju.glb', 'glb')
+      this.skeleton_type = SkeletonType.Kaiju
+      this.change_active_skeleton(kaiju_button)
     })
 
     human_button?.click() // load human by default to start us out

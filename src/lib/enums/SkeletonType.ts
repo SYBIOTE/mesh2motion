@@ -5,6 +5,7 @@ export enum SkeletonType {
   Human = 'rigs/rig-human.glb',
   Bird = 'rigs/rig-bird.glb',
   Dragon = 'rigs/rig-dragon.glb',
+  Kaiju = 'rigs/rig-kaiju.glb',
   Error = 'ERROR',
   None = 'NONE'
 }

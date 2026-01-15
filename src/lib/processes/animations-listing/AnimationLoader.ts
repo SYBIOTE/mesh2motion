@@ -142,6 +142,8 @@ export class AnimationLoader extends EventTarget {
         return [`${base_path}bird-animations.glb`]
       case SkeletonType.Dragon:
         return [`${base_path}dragon-animations.glb`]
+      case SkeletonType.Kaiju:
+        return [`${base_path}kaiju-animations.glb`]
       default:
         console.error('Unknown skeleton type for loading animations:', skeleton_type)
         return []
