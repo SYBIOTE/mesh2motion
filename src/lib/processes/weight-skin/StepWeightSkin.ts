@@ -99,6 +99,26 @@ export class StepWeightSkin extends EventTarget {
     this.skinned_meshes = []
     this.all_mesh_materials = []
     this.all_mesh_geometry = []
+
+    // https://github.com/Mesh2Motion/mesh2motion-app/issues/82
+    // Properly dispose of all children in the weight painted mesh preview to prevent memory leaks
+    // It didn't seem to make much of a difference for Scott, but maybe it helps others
+    this.weight_painted_mesh_preview.children.forEach((child) => {
+      if (child instanceof SkinnedMesh || 'geometry' in child) {
+        const mesh = child as any
+        if (mesh.geometry) {
+          mesh.geometry.dispose()
+        }
+        if (mesh.material) {
+          if (Array.isArray(mesh.material)) {
+            mesh.material.forEach((mat: Material) => mat.dispose())
+          } else {
+            mesh.material.dispose()
+          }
+        }
+      }
+    })
+
     this.weight_painted_mesh_preview.clear()
   }
 
